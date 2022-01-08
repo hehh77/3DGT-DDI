@@ -43,13 +43,15 @@ def main():
     parser.add_argument('--save_log_path', default='default', type=str, required=False,
                         help='..')
     args = parser.parse_args()
-    model = myModel_text_graph_pos_cnn_sch1(model_name = args.model_name, num_class=args.num_class, max_len=args.max_len,
+    model = Three_DGT(model_name = args.model_name, num_class=args.num_class, max_len=args.max_len,
                                             emb_dim=args.emb_dim, cutoff=args.cutoff,
                                             num_layers=args.num_layers, hidden_channels=args.hidden_channels,
                                             num_filters=args.num_filters, num_gaussians=args.num_gaussians,
                                             g_out_channels=args.g_out_channels
                                             )
+
     if args.load_model_path is not None:
+        print(args.load_model_path)
         save_model = torch.load(args.load_model_path)
         model_dict = model.state_dict()
         state_dict = {k:v for k,v in save_model.items() if k in model_dict.keys()}
@@ -57,7 +59,7 @@ def main():
         model.load_state_dict(model_dict)
     optimizer = AdamW(model.parameters(), lr=args.lr, weight_decay=args.weight_decay)
     dataset = DDI2013Dataset(root=args.train_root, path=args.train_path,model_name=args.model_name)
-    split_idx = dataset.get_idx_split(len(dataset.data.y), int(len(dataset.data.y)*0.8), seed=2)
+    split_idx = dataset.get_idx_split(len(dataset.data.y), int(len(dataset.data.y)*0.7), seed=22)
     train_dataset, valid_dataset =dataset[split_idx['train']], dataset[split_idx['valid']]
     test_dataset = DDI2013Dataset(root=args.test_root, path=args.test_path,model_name=args.model_name)
     train_loader = DataLoader(train_dataset, batch_size=args.batch_size, shuffle=True, follow_batch=['pos1', 'pos2'])
