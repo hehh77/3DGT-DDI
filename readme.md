@@ -16,7 +16,7 @@
 To train the 3DGT-DDI model in DDI2013 datasets:
 
 ```python
-python ddi2013.py --train_root ../datasets/ddi_train/ --train_path train_smiles_pos.csv --test_root ../datasets/ddi_test/ --test_path test_smiles_pos.csv --batch_size 6 --epochs 200 --lr 2e-6 --weight_decay 1e-2 --model_name allenai/scibert_scivocab_uncased --num_class 5 --max_len 128 --emb_dim 64 --cutoff 10.0 --num_layers 6 --hidden_channels 128 --num_filters 128 --num_gaussians 50 --g_out_channels 5
+python ddi2013.py --train_root ../datasets/ddi_train/ --train_path train_smiles_pos.csv --test_root ../datasets/ddi_test/ --test_path test_smiles_pos.csv --batch_size 8 --epochs 300 --lr 2e-6 --weight_decay 1e-2 --model_name allenai/scibert_scivocab_uncased --num_class 5 --max_len 128 --emb_dim 64 --cutoff 10.0 --num_layers 6 --hidden_channels 128 --num_filters 128 --num_gaussians 50 --g_out_channels 32
 ```
 
 To train the 3DGT-DDI model in DrugBank datasets:
