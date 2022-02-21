@@ -62,7 +62,6 @@ def main():
     kf = KFold(n_splits=5, shuffle=True, random_state=123)
     dataset = DDI2013Dataset(root=args.train_root, path=args.train_path,model_name=args.model_name)
     for train, valid in kf.split(range(len(dataset.data.y))):
-        #split_idx = dataset.get_idx_split(len(dataset.data.y), int(len(dataset.data.y)*0.7), seed=360)
         train_dataset, valid_dataset =dataset[list(train)], dataset[list(valid)]
         test_dataset = DDI2013Dataset(root=args.test_root, path=args.test_path,model_name=args.model_name)
         train_loader = DataLoader(train_dataset, batch_size=args.batch_size, shuffle=True, follow_batch=['pos1', 'pos2'])
