@@ -35,7 +35,7 @@ def main():
     parser.add_argument('--save_log_path', default="default", type=str, required=False,
                         help='..')
     args = parser.parse_args()
-    model = Three_DG(num_class=args.num_class,
+    model = myModel_graph_sch_cnn(num_class=args.num_class,
                                     cutoff=args.cutoff,
                                     num_layers=args.num_layers, hidden_channels=args.hidden_channels,
                                     num_filters=args.num_filters, num_gaussians=args.num_gaussians,

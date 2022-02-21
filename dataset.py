@@ -2,16 +2,14 @@ import torch.utils.data as DATA
 from transformers import AdamW, AutoModel, AutoTokenizer
 import os
 import pandas as pd
-
 from torch_geometric.data import InMemoryDataset
 from torch_geometric.data import Data as DATA
-import rdkit
-from rdkit import Chem
-from rdkit.Chem import AllChem
+#import rdkit
+#from rdkit import Chem
+#from rdkit.Chem import AllChem
 import numpy as np
 import torch
 from sklearn.utils import shuffle
-
 import torch
 import random
 

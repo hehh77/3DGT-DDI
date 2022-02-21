@@ -7,10 +7,13 @@ import random
 
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
-class Three_DGT(nn.Module):
+
+
+
+class myModel_text_graph_pos_cnn_sch(nn.Module):
     def __init__(self, model_name, hidden_size=768, num_class=2, freeze_bert=False, max_len=128,
-                 emb_dim=64,cutoff = 10.0,num_layers = 6,hidden_channels = 128,num_filters = 128,num_gaussians = 50,g_out_channels = 5):  # , freeze_bert=False   ,model_name):
-        super(myModel_text_graph_pos_cnn_sch1, self).__init__()
+                 emb_dim=64,cutoff = 10.0,num_layers = 6,hidden_channels = 128,num_filters = 128,num_gaussians = 50,g_out_channels = 5):
+        super(myModel_text_graph_pos_cnn_sch, self).__init__()
         self.max_len = max_len
         self.emb_dim = emb_dim
         self.bert = AutoModel.from_pretrained(model_name, cache_dir='../cache', output_hidden_states=True,
@@ -18,7 +21,7 @@ class Three_DGT(nn.Module):
         if freeze_bert:
             for p in self.bert.parameters():
                 p.requires_grad = False
-        self.cnn = CNN(out_channel=5)
+        self.cnn = CNN()
         self.cutoff = cutoff
         self.num_layers =num_layers
         self.hidden_channels =hidden_channels
@@ -30,32 +33,37 @@ class Three_DGT(nn.Module):
         self.model2 = SchNet(energy_and_force=False, cutoff=self.cutoff, num_layers=self.num_layers,
                              hidden_channels=self.hidden_channels, num_filters=self.num_filters, num_gaussians=self.num_gaussians,
                              out_channels=g_out_channels)
+
         self.fc_g_1 = nn.Sequential(
             # nn.Dropout(),
-            nn.Linear(g_out_channels, 32 * 2, bias=True),
+            nn.Linear(32, 32 * 2, bias=True),
             nn.PReLU(),
-            nn.Linear(32 * 2, num_class, bias=True)
+            nn.Linear(32 * 2, 32, bias=True)
         )
         self.fc_g_2 = nn.Sequential(
             # nn.Dropout(),
-            nn.Linear(g_out_channels, 32 * 2, bias=True),
+            nn.Linear(32, 32 * 2, bias=True),
             nn.PReLU(),
-            nn.Linear(32 * 2, num_class, bias=True)
+            nn.Linear(32 * 2, 32, bias=True)
         )
-        self.cnn_g = CNN_g(in_channel=2,fc1_hid_dim = g_out_channels*256, out_channel=num_class)
+
+        self.cnn_g = CNN_g(in_channel=2, out_channel=num_class)
+
         self.emb = nn.Embedding(self.max_len + 1, self.emb_dim)
+
         self.fc_emb = nn.Sequential(
             # nn.Dropout(),
             nn.Linear(self.emb_dim * 2, 32 * 2, bias=True),
             nn.PReLU(),
             nn.Linear(32 * 2, num_class, bias=True)
         )
+
         self.fc3 = nn.Sequential(
             # nn.Dropout(),
-            nn.Linear(3 * 5, num_class, bias=True),
-
+            nn.Linear(3 * num_class, 32 * 2, bias=True),
+            nn.PReLU(),
+            nn.Linear(32 * 2, num_class, bias=True)
         )
-        self.cnn_out = nn.Conv1d(in_channels=3 * 32, out_channels=num_class, kernel_size=(1,))
 
     def forward(self, batch_data):
         outputs = self.bert(input_ids=batch_data.token_ids.view(-1, self.max_len),
@@ -69,31 +77,44 @@ class Three_DGT(nn.Module):
         batch_data.pos = batch_data.pos1
         batch_data.z = batch_data.z1
         batch_data.batch = batch_data.pos1_batch
-        pred1 = self.model1(batch_data)
+        self.pred1 = self.model1(batch_data)
         batch_data.pos = batch_data.pos2
         batch_data.z = batch_data.z2
         batch_data.batch = batch_data.pos2_batch
-        pred2 = self.model2(batch_data)
-        pred1 = self.fc_g_1(pred1)
-        pred2 = self.fc_g_2(pred2)
-        pred1 = pred1.unsqueeze(1)
-        pred2 = pred2.unsqueeze(1)
-        pred = torch.cat((pred1, pred2), 1)
-        pred = self.cnn_g(pred)
+        self.pred2 = self.model2(batch_data)
+        self.pred1 = self.fc_g_1(self.pred1)
+        self.pred2 = self.fc_g_2(self.pred2)
+        self.pred1 = self.pred1.unsqueeze(1)
+        self.pred2 = self.pred2.unsqueeze(1)
+        self.pred = torch.cat((self.pred1, self.pred2), 1)
+        self.pred = self.cnn_g(self.pred)
+
+        # self.pred = (self.pred + 9*logits)/10.0
+
         drug1_pos = batch_data.drug1_pos
         drug2_pos = batch_data.drug2_pos
         drug1_pos[drug1_pos == -1] = self.max_len
         drug2_pos[drug2_pos == -1] = drug1_pos[drug2_pos == -1]
-        emb1 = self.emb(drug1_pos)
-        emb2 = self.emb(drug2_pos)
-        emb_cat = torch.cat((emb1, emb2), 1)
-        emb_cat = self.fc_emb(emb_cat)
-        pred_total = logits + 0.1 * pred + 0.1 * emb_cat
-        return pred_total
+        self.emb1 = self.emb(drug1_pos)
+        self.emb2 = self.emb(drug2_pos)
+        self.emb_cat = torch.cat((self.emb1, self.emb2), 1)
+        self.emb_cat = self.fc_emb(self.emb_cat)
+        # self.emb_cat = F.softmax(self.emb_cat,dim=1)
+
+        # self.pred = (19*self.pred + self.emb_cat)/20.0
+
+        self.pred_total = torch.cat((logits, self.pred, self.emb_cat), 1)
+        self.pred_total = self.fc3(self.pred_total)
+        # if random.random() < 0.01:
+        #     print(logits)
+        #     print(self.pred)
+        #     print(self.emb_cat)
+        #     print(self.pred_total)
+        return self.pred_total
 
 
 
-class Three_DG(nn.Module):
+class myModel_graph_sch_cnn(nn.Module):
     def __init__(self,num_class=2,cutoff = 10.0,num_layers = 6,hidden_channels = 128,
                  num_filters = 128,num_gaussians = 50,g_out_channels = 5):
         super(myModel_graph_sch_cnn, self).__init__()
@@ -152,25 +173,24 @@ class CNN(nn.Module):
         self.conv31 = nn.Conv2d(128, 128, kernel_size=(1, 3), padding=[0, 1])
         self.conv32 = nn.Conv2d(128, 128, kernel_size=(1, 3), padding=[0, 1])
         self.conv4 = nn.Conv2d(128, 256, kernel_size=(1, 3), padding=[0, 1])
-        # self.conv5 = nn.Conv2d(256,5,kernel_size=[1,3],padding=[0,1])
         self.fc1 = nn.Linear(fc1_hid_dim, 64)
         self.fc2 = nn.Linear(64, out_channel)
         self.out_channel = out_channel
         self.Lrelu = nn.LeakyReLU()
-        # self.bn1 = nn.BatchNorm2d(64)
-        # self.bn2 = nn.BatchNorm2d(128)
-        # self.bn31 = nn.BatchNorm2d(128)
-        # self.bn32 = nn.BatchNorm2d(128)
-        # self.bn4 = nn.BatchNorm2d(256)
+        self.bn1 = nn.BatchNorm2d(64)
+        self.bn2 = nn.BatchNorm2d(128)
+        self.bn31 = nn.BatchNorm2d(128)
+        self.bn32 = nn.BatchNorm2d(128)
+        self.bn4 = nn.BatchNorm2d(256)
     def forward(self, x):
-        x = self.Lrelu(self.conv1(x)) # 输入 batch size * hiddenLayers * max_len * embedding Length (bs*6*128*768) 输出 bs*64*128*768
-        x = self.Lrelu(self.conv2(x))  # 输出 bs*128*128*768
+
+        x = self.Lrelu(self.bn1(self.conv1(x))) # 输入 batch size * hiddenLayers * max_len * embedding Length (bs*6*128*768) 输出 bs*64*128*768
+        x = self.Lrelu(self.bn2(self.conv2(x)))  # 输出 bs*128*128*768
         res = x
-        x = self.Lrelu(self.conv31(x))  # 输出 bs*128*128*768
-        x = self.Lrelu(self.conv32(x))  # 输出 bs*128*128*768
+        x = self.Lrelu(self.bn31(self.conv31(x)))  # 输出 bs*128*128*768
+        x = self.Lrelu(self.bn32(self.conv32(x)))  # 输出 bs*128*128*768
         x = res + x
-        x = self.Lrelu(self.conv4(x))  # 输出 bs*256*128*768
-        # x = self.Lrelu(self.conv5(x))
+        x = self.Lrelu(self.bn4(self.conv4(x)))  # 输出 bs*256*128*768
         x = self.Lrelu(self.fc1(x.view(x.shape[0], x.shape[1], -1)))  # 输出 bs*64*64
         x = self.Lrelu(self.fc2(x))  # 输出 bs*64*out_channel
         x = F.adaptive_avg_pool2d(x, (1, self.out_channel)).squeeze(dim=-1).squeeze(1)  # 平均池化为 bs*out_channel
@@ -188,7 +208,6 @@ class CNN_g(nn.Module):
         self.conv31 = nn.Conv1d(128, 128, kernel_size=3, padding=1)
         self.conv32 = nn.Conv1d(128, 128, kernel_size=3, padding=1)
         self.conv4 = nn.Conv1d(128, 256, kernel_size=3, padding=1)
-        # self.conv5 = nn.Conv2d(256,5,kernel_size=[1,3],padding=[0,1])
         self.fc1 = nn.Linear(fc1_hid_dim, 64)
         self.fc2 = nn.Linear(64, out_channel)
         self.Lrelu = nn.LeakyReLU()
@@ -201,7 +220,6 @@ class CNN_g(nn.Module):
         x = self.Lrelu(self.conv32(x))  # batchsize *128 * 32
         x = res + x  # batchsize *128 * 32
         x = self.Lrelu(self.conv4(x))  # batchsize *256 * 32
-        # x = self.Lrelu(self.conv5(x))
         x = self.Lrelu(self.fc1(x.view(x.shape[0], -1)))  # batchsize * 64
         x = self.fc2(x)  # batchsize * out_channel 输出通道数代表预测的类别数量 根据任务的分类类别来确定  ddi2013里面是5 drugbank里面是2
 
@@ -230,12 +248,7 @@ class myModel_text_cnn(nn.Module):
         )
         self.cnn = CNN()
 
-    def forward(self, batch_data):  # , input_ids, attn_masks, token_type_ids
-        # outputs = self.bert(input_ids, token_type_ids=token_type_ids, attention_mask=attn_masks)
-        # hidden_states = torch.cat(tuple([outputs.hidden_states[i] for i in [-1, -2, -3, -4]]),
-        #                          dim=-1)  # [bs, seq_len, hidden_dim*4]
-        # first_hidden_states = hidden_states[:, 0, :]  # [bs, hidden_dim*4]
-        # logits = self.fc(first_hidden_states)
+    def forward(self, batch_data):
         outputs = self.bert(input_ids=batch_data.token_ids.view(-1, self.max_len),
                             token_type_ids=batch_data.token_type_ids.view(-1, self.max_len),
                             attention_mask=batch_data.attn_masks.view(-1, self.max_len))
@@ -276,12 +289,7 @@ class myModel_text_pos_cnn(nn.Module):
         )
         self.cnn = CNN()
 
-    def forward(self, batch_data):  # , input_ids, attn_masks, token_type_ids
-        # outputs = self.bert(input_ids, token_type_ids=token_type_ids, attention_mask=attn_masks)
-        # hidden_states = torch.cat(tuple([outputs.hidden_states[i] for i in [-1, -2, -3, -4]]),
-        #                          dim=-1)  # [bs, seq_len, hidden_dim*4]
-        # first_hidden_states = hidden_states[:, 0, :]  # [bs, hidden_dim*4]
-        # logits = self.fc(first_hidden_states)
+    def forward(self, batch_data):
         outputs = self.bert(input_ids=batch_data.token_ids.view(-1, self.max_len),
                             token_type_ids=batch_data.token_type_ids.view(-1, self.max_len),
                             attention_mask=batch_data.attn_masks.view(-1, self.max_len))
